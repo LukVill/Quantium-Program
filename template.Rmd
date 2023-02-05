@@ -1,0 +1,80 @@
+
+---
+title: "Quantium Virtual Internship - Retail Strategy and Analytics - Task 1"
+mainfont: Roboto
+monofont: Consolas
+output:
+ pdf_document: 
+   df_print: default
+   highlight: tango
+   keep_tex: yes
+   latex_engine: xelatex
+header-includes:
+  \usepackage{fvextra}
+  \DefineVerbatimEnvironment{Highlighting}{Verbatim}{breaklines,commandchars=\\\{\}}
+---
+
+```{r setup, include=FALSE}
+# set options for R markdown knitting
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(linewidth=80)
+```
+```{r knitr line wrap setup, include=FALSE}
+# set up line wrapping in MD knit output
+library(knitr)
+hook_output = knit_hooks$get("output")
+knit_hooks$set(output = function(x, options) 
+{
+ # this hook is used only when the linewidth option is not NULL
+ if (!is.null(n <- options$linewidth)) 
+ {
+ x = knitr:::split_lines(x)
+ # any lines wider than n should be wrapped
+ if (any(nchar(x) > n)) 
+ x = strwrap(x, width = n)
+ x = paste(x, collapse = "\n")
+ }
+ hook_output(x, options)
+})
+```
+# Solution template for Task 1
+This file is a solution template for the Task 1 of the Quantium Virtual Internship.
+It will walk you through the analysis, providing the scaffolding for your solution 
+with gaps left for you to fill in yourself. 
+
+Look for comments that say "over to you" for places where you need to add your own 
+code! 
+Often, there will be hints about what to do or what function to use in the text 
+leading up to a code block - if you need a bit of extra help on how to use a 
+function, the internet has many excellent resources on R coding, which you can find
+using your favourite search engine. 
+## Load required libraries and datasets
+Note that you will need to install these libraries if you have never used these 
+before. 
+```{r 0 Load Libraries, results = 'hide'}
+#### Example code to install packages
+#install.packages("data.table")
+#### Load required libraries
+library("data.table")
+library(ggplot2)
+library(ggmosaic)
+library(readr)
+#### Point the filePath to where you have downloaded the datasets to and 
+#### assign the data files to data.tables
+# over to you! fill in the path to your working directory. If you are on a Windows machine, you will need to use forward slashes (/) instead of backshashes (\)
+filePath <- ""
+transactionData <- fread(paste0(filePath,"C:/Users/Luke Villanueva/source/repos/LukVill/Quantium Program/QVI_transaction_data.csv"))
+customerData <- fread(paste0(filePath,"C:/Users/Luke Villanueva/source/repos/LukVill/Quantium Program/QVI_purchase_behaviour.csv"))
+```
+## Exploratory data analysis
+The first step in any analysis is to first understand the data. Let's take a look 
+at each of the datasets provided.
+### Examining transaction data
+We can use `str()` to look at the format of each column and see a sample of the 
+data. As we have read in the dataset as a `data.table` object, we can also run 
+`transactionData` in the console to see a sample of the data or use 
+`head(transactionData)` to look at the first 10 rows.
+Let's check if columns we would expect to be numeric are in numeric form and date 
+columns are in date format.
+```{r Examining transaction data}
+#### Examine transaction data
