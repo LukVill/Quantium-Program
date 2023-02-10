@@ -155,16 +155,16 @@ before.
 \begin{verbatim}
 ## Warning in (if (.Platform$OS.type == "unix")
 ## system else shell)(paste0("(", : '(C:/Users/Luke
-## Villanueva/source/repos/LukVill/Quantium Program/QVI_transaction_data.csv)
-## > C:\Users\LUKEVI~1\AppData\Local\Temp\Rtmpw5AwMV\file531c6841aac' execution
-## failed with error code 1
+## Villanueva/source/repos/LukVill/Quantium Program/QVI_transaction_data.csv) >
+## C:\Users\lavil\AppData\Local\Temp\Rtmpohrp18\fileb9dc26cd6811' execution failed
+## with error code 1
 \end{verbatim}
 
 \begin{verbatim}
 ## Warning in fread(paste0(filePath, "C:/Users/Luke
 ## Villanueva/source/repos/LukVill/Quantium Program/QVI_transaction_data.csv")):
-## File 'C:\Users\LUKEVI~1\AppData\Local\Temp\Rtmpw5AwMV\file531c6841aac' has size
-## 0. Returning a NULL data.table.
+## File 'C:\Users\lavil\AppData\Local\Temp\Rtmpohrp18\fileb9dc26cd6811' has size 0.
+## Returning a NULL data.table.
 \end{verbatim}
 
 \begin{Shaded}
@@ -172,6 +172,25 @@ before.
 \NormalTok{customerData }\OtherTok{\textless{}{-}} \FunctionTok{fread}\NormalTok{(}\FunctionTok{paste0}\NormalTok{(filePath,}\StringTok{"C:/Users/Luke Villanueva/source/repos/LukVill/Quantium Program/QVI\_purchase\_behaviour.csv"}\NormalTok{))}
 \end{Highlighting}
 \end{Shaded}
+
+\begin{verbatim}
+## Taking input= as a system command ('C:/Users/Luke Villanueva/source/repos/LukVill/Quantium Program/QVI_purchase_behaviour.csv') and a variable has been used in the expression passed to `input=`. Please use fread(cmd=...). There is a security concern if you are creating an app, and the app could have a malicious user, and the app is not running in a secure environment; e.g. the app is running as root. Please read item 5 in the NEWS file for v1.11.6 for more information and for the option to suppress this message.
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in (if (.Platform$OS.type == "unix")
+## system else shell)(paste0("(", : '(C:/Users/Luke
+## Villanueva/source/repos/LukVill/Quantium Program/QVI_purchase_behaviour.csv) >
+## C:\Users\lavil\AppData\Local\Temp\Rtmpohrp18\fileb9dc4a7b567c' execution failed
+## with error code 1
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in fread(paste0(filePath, "C:/Users/Luke
+## Villanueva/source/repos/LukVill/Quantium Program/QVI_purchase_behaviour.csv")):
+## File 'C:\Users\lavil\AppData\Local\Temp\Rtmpohrp18\fileb9dc4a7b567c' has size 0.
+## Returning a NULL data.table.
+\end{verbatim}
 
 \hypertarget{exploratory-data-analysis}{%
 \subsection{Exploratory data analysis}\label{exploratory-data-analysis}}
