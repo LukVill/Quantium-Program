@@ -127,9 +127,14 @@ add your own code! Often, there will be hints about what to do or what
 function to use in the text leading up to a code block - if you need a
 bit of extra help on how to use a function, the internet has many
 excellent resources on R coding, which you can find using your favourite
-search engine. \#\# Load required libraries and datasets Note that you
-will need to install these libraries if you have never used these
-before.
+search engine.
+
+\hypertarget{load-required-libraries-and-datasets}{%
+\subsection{Load required libraries and
+datasets}\label{load-required-libraries-and-datasets}}
+
+Note that you will need to install these libraries if you have never
+used these before.
 
 \begin{Shaded}
 \begin{Highlighting}[]
@@ -143,33 +148,9 @@ before.
 \DocumentationTok{\#\#\#\# Point the filePath to where you have downloaded the datasets to and }
 \DocumentationTok{\#\#\#\# assign the data files to data.tables}
 \CommentTok{\# over to you! fill in the path to your working directory. If you are on a Windows machine, you will need to use forward slashes (/) instead of backshashes (\textbackslash{})}
-\NormalTok{filePath }\OtherTok{\textless{}{-}} \StringTok{""}
-\NormalTok{transactionData }\OtherTok{\textless{}{-}} \FunctionTok{fread}\NormalTok{(}\FunctionTok{paste0}\NormalTok{(filePath,}\StringTok{"C:/Users/Luke Villanueva/source/repos/LukVill/Quantium Program/QVI\_transaction\_data.csv"}\NormalTok{))}
-\end{Highlighting}
-\end{Shaded}
-
-\begin{verbatim}
-## Taking input= as a system command ('C:/Users/Luke Villanueva/source/repos/LukVill/Quantium Program/QVI_transaction_data.csv') and a variable has been used in the expression passed to `input=`. Please use fread(cmd=...). There is a security concern if you are creating an app, and the app could have a malicious user, and the app is not running in a secure environment; e.g. the app is running as root. Please read item 5 in the NEWS file for v1.11.6 for more information and for the option to suppress this message.
-\end{verbatim}
-
-\begin{verbatim}
-## Warning in (if (.Platform$OS.type == "unix")
-## system else shell)(paste0("(", : '(C:/Users/Luke
-## Villanueva/source/repos/LukVill/Quantium Program/QVI_transaction_data.csv)
-## > C:\Users\LUKEVI~1\AppData\Local\Temp\Rtmpw5AwMV\file531c6841aac' execution
-## failed with error code 1
-\end{verbatim}
-
-\begin{verbatim}
-## Warning in fread(paste0(filePath, "C:/Users/Luke
-## Villanueva/source/repos/LukVill/Quantium Program/QVI_transaction_data.csv")):
-## File 'C:\Users\LUKEVI~1\AppData\Local\Temp\Rtmpw5AwMV\file531c6841aac' has size
-## 0. Returning a NULL data.table.
-\end{verbatim}
-
-\begin{Shaded}
-\begin{Highlighting}[]
-\NormalTok{customerData }\OtherTok{\textless{}{-}} \FunctionTok{fread}\NormalTok{(}\FunctionTok{paste0}\NormalTok{(filePath,}\StringTok{"C:/Users/Luke Villanueva/source/repos/LukVill/Quantium Program/QVI\_purchase\_behaviour.csv"}\NormalTok{))}
+\NormalTok{filePath }\OtherTok{\textless{}{-}} \FunctionTok{paste0}\NormalTok{(}\FunctionTok{getwd}\NormalTok{(),}\StringTok{"/"}\NormalTok{)}
+\NormalTok{transactionData }\OtherTok{\textless{}{-}} \FunctionTok{fread}\NormalTok{(}\AttributeTok{file =} \FunctionTok{paste0}\NormalTok{(filePath,}\StringTok{"QVI\_transaction\_data.xlsx {-} in.csv"}\NormalTok{), }\AttributeTok{header =} \ConstantTok{TRUE}\NormalTok{)}
+\NormalTok{customerData }\OtherTok{\textless{}{-}} \FunctionTok{fread}\NormalTok{(}\AttributeTok{file =} \FunctionTok{paste0}\NormalTok{(filePath,}\StringTok{"QVI\_purchase\_behaviour.csv"}\NormalTok{), }\AttributeTok{header =} \ConstantTok{TRUE}\NormalTok{)}
 \end{Highlighting}
 \end{Shaded}
 
@@ -189,8 +170,117 @@ columns are in date format.
 \begin{Shaded}
 \begin{Highlighting}[]
 \DocumentationTok{\#\#\#\# Examine transaction data}
+\CommentTok{\# Over to you! Examine the data using one or more of the methods described above.}
+
+\FunctionTok{str}\NormalTok{(transactionData)}
 \end{Highlighting}
 \end{Shaded}
 
+\begin{verbatim}
+## Classes 'data.table' and 'data.frame': 264836 obs. of 8 variables:
+## $ DATE : int 43390 43599 43605 43329 43330 43604 43601 43601 43332 43330 ...
+## $ STORE_NBR : int 1 1 1 2 2 4 4 4 5 7 ...
+## $ LYLTY_CARD_NBR: int 1000 1307 1343 2373 2426 4074 4149 4196 5026 7150 ...
+## $ TXN_ID : int 1 348 383 974 1038 2982 3333 3539 4525 6900 ...
+## $ PROD_NBR : int 5 66 61 69 108 57 16 24 42 52 ...
+## $ PROD_NAME : chr "Natural Chip Compny SeaSalt175g" "CCs Nacho Cheese 175g"
+"Smiths Crinkle Cut Chips Chicken 170g" "Smiths Chip Thinly S/Cream&Onion 175g"
+...
+## $ PROD_QTY : int 2 3 2 5 3 1 1 1 1 2 ...
+## $ TOT_SALES : num 6 6.3 2.9 15 13.8 5.1 5.7 3.6 3.9 7.2 ...
+## - attr(*, ".internal.selfref")=<externalptr>
+\end{verbatim}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{transactionData}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+##          DATE STORE_NBR LYLTY_CARD_NBR TXN_ID PROD_NBR
+##      1: 43390         1           1000      1        5
+##      2: 43599         1           1307    348       66
+##      3: 43605         1           1343    383       61
+##      4: 43329         2           2373    974       69
+##      5: 43330         2           2426   1038      108
+##     ---                                               
+## 264832: 43533       272         272319 270088       89
+## 264833: 43325       272         272358 270154       74
+## 264834: 43410       272         272379 270187       51
+## 264835: 43461       272         272379 270188       42
+## 264836: 43365       272         272380 270189       74
+##                                        PROD_NAME PROD_QTY TOT_SALES
+##      1:   Natural Chip        Compny SeaSalt175g        2       6.0
+##      2:                 CCs Nacho Cheese    175g        3       6.3
+##      3:   Smiths Crinkle Cut  Chips Chicken 170g        2       2.9
+##      4:   Smiths Chip Thinly  S/Cream&Onion 175g        5      15.0
+##      5: Kettle Tortilla ChpsHny&Jlpno Chili 150g        3      13.8
+##     ---                                                            
+## 264832:  Kettle Sweet Chilli And Sour Cream 175g        2      10.8
+## 264833:            Tostitos Splash Of  Lime 175g        1       4.4
+## 264834:                 Doritos Mexicana    170g        2       8.8
+## 264835:  Doritos Corn Chip Mexican Jalapeno 150g        2       7.8
+## 264836:            Tostitos Splash Of  Lime 175g        2       8.8
+\end{verbatim}
+
+We can see that the date column is in an integer format. Let's change
+this to a date format.
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\DocumentationTok{\#\#\#\# Convert DATE column to a date format}
+\DocumentationTok{\#\#\#\# A quick search online tells us that CSV and Excel integer dates begin on 30 Dec 1899}
+
+\NormalTok{transactionData}\SpecialCharTok{$}\NormalTok{DATE }\OtherTok{\textless{}{-}} \FunctionTok{as.Date}\NormalTok{(transactionData}\SpecialCharTok{$}\NormalTok{DATE, }\AttributeTok{origin =} \StringTok{"1899{-}12{-}30"}\NormalTok{)}
+\end{Highlighting}
+\end{Shaded}
+
+We should check that we are looking at the right products by examining
+PROD\_NAME.
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\DocumentationTok{\#\#\#\# Examine PROD\_NAME}
+\CommentTok{\# Over to you! Generate a summary of the PROD\_NAME column.}
+
+\NormalTok{transactionData}\SpecialCharTok{$}\NormalTok{PROD\_NAME[}\DecValTok{1}\SpecialCharTok{:}\DecValTok{10}\NormalTok{]}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+##  [1] "Natural Chip        Compny SeaSalt175g"  
+##  [2] "CCs Nacho Cheese    175g"                
+##  [3] "Smiths Crinkle Cut  Chips Chicken 170g"  
+##  [4] "Smiths Chip Thinly  S/Cream&Onion 175g"  
+##  [5] "Kettle Tortilla ChpsHny&Jlpno Chili 150g"
+##  [6] "Old El Paso Salsa   Dip Tomato Mild 300g"
+##  [7] "Smiths Crinkle Chips Salt & Vinegar 330g"
+##  [8] "Grain Waves         Sweet Chilli 210g"   
+##  [9] "Doritos Corn Chip Mexican Jalapeno 150g" 
+## [10] "Grain Waves Sour    Cream&Chives 210G"
+\end{verbatim}
+
+Looks like we are definitely looking at potato chips but how can we
+check that these are all chips? We can do some basic text analysis by
+summarizing the individual words in the product name.
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\DocumentationTok{\#\#\#\# Examine the words in PROD\_NAME to see if there are any incorrect entries}
+\DocumentationTok{\#\#\#\# such as products that are not chips}
+
+\CommentTok{\# make dataframe of all chars in all data names}
+\NormalTok{productWords }\OtherTok{\textless{}{-}} \FunctionTok{data.table}\NormalTok{(}\FunctionTok{unlist}\NormalTok{(}\FunctionTok{strsplit}\NormalTok{(}\FunctionTok{unique}\NormalTok{(transactionData[, PROD\_NAME]), }\StringTok{""}\NormalTok{)))}
+
+\CommentTok{\# set column name as words}
+\FunctionTok{setnames}\NormalTok{(productWords, }\StringTok{\textquotesingle{}words\textquotesingle{}}\NormalTok{)}
+\end{Highlighting}
+\end{Shaded}
+
+As we are only interested in words that will tell us if the product is
+chips or not, let's remove all words with digits and special characters
+such as `\&' from our set of product words. We can do this using
+\texttt{grepl()}.
 
 \end{document}
