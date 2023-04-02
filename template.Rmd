@@ -60,6 +60,8 @@ library("data.table")
 library(ggplot2)
 library(ggmosaic)
 library(readr)
+library(plyr)
+
 #### Point the filePath to where you have downloaded the datasets to and 
 #### assign the data files to data.tables
 # over to you! fill in the path to your working directory. If you are on a Windows machine, you will need to use forward slashes (/) instead of backshashes (\)
@@ -98,6 +100,7 @@ date format.
 #### A quick search online tells us that CSV and Excel integer dates begin on 30 Dec 1899
 
 transactionData$DATE <- as.Date(transactionData$DATE, origin = "1899-12-30")
+
 ```
 
 We should check that we are looking at the right products by examining PROD_NAME.
@@ -139,7 +142,8 @@ productWords <- productWords[!grepl("\\d",productWords$words)]
 
 
 #### Removing special characters
-productWords <- productWords[!grepl("[$&+,:;=?@#|'<>.^*()%!]-/",productWords$words)]
+# remove punct
+productWords <- productWords[!grepl("[[:punct:]]",productWords$words)]
 
 #### Let's look at the most common words by counting the number of times a word appears and
 #### sorting them by this frequency in order of highest to lowest frequency
@@ -172,6 +176,127 @@ for(i in seq_along(productWords$words))
 
 # with word_vec, count most common words, exclude ""
 summary_word_vec <- sort(table(word_vec))
-summary_word_vec <- summary_word_vec[-length(summary_word_vec )]
+summary_word_vec <- rev(summary_word_vec[-length(summary_word_vec )])
+
+# print out sorted vector
+summary_word_vec
+
+```
+
+There are salsa products in the dataset but we are only interested in the chips
+category, so let's remove these.
+
+```{r}
+#### Remove salsa products
+transactionData[, SALSA := grepl("salsa", tolower(PROD_NAME))]
+transactionData <- transactionData[SALSA == FALSE, ][, SALSA := NULL]
+```
+
+Next, we can use `summary()` to check summary statistics such as mean, min and max
+values for each feature to see if there are any obvious outliers in the data and if
+there are any nulls in any of the columns (`NA's : number of nulls`) will appear in
+the output if there are any nulls).
+
+```{r initial summary}
+#### Summarise the data to check for nulls and possible outliers
+# Over to you!
+
+summary(transactionData)
+
+```
+
+There are no nulls in the columns but product quantity appears to have an outlier
+which we should investigate further. Let's investigate further the case where 200
+packets of chips are bought in one transaction.
+
+```{r }
+#### Filter the dataset to find the outlier
+# Over to you! Use a filter to examine the transactions in question.
+
+transactionData[transactionData$PROD_QTY == 200.000]
+
+```
+
+There are two transactions where 200 packets of chips are bought in one transaction
+and both of these transactions were by the same customer.
+
+```{r}
+#### Let's see if the customer has had other transactions
+# Over to you! Use a filter to see what other transactions that customer made.
+
+transactionData[transactionData$LYLTY_CARD_NBR == 226000]
+
+```
+
+It looks like this customer has only had the two transactions over the year and is
+not an ordinary retail customer. The customer might be buying chips for commercial
+purposes instead. We'll remove this loyalty card number from further analysis.
+
+```{r}
+#### Filter out the customer based on the loyalty card number
+# Over to you!
+
+transactionData <- transactionData[!transactionData$LYLTY_CARD_NBR == 226000]
+
+#### Re-examine transaction data
+# Over to you!
+
+summary(transactionData)
+
+```
+
+That's better. Now, let's look at the number of transaction lines over time to see
+if there are any obvious data issues such as missing data.
+
+```{r}
+#### Count the number of transactions by date
+# Over to you! Create a summary of transaction count by date.
+
+# get vec of dates in data, for each entry in data
+count_trans <- numeric(0)
+for(i in seq_along(unique(transactionData$DATE)))
+{
+  # filter by each date, get row count, then place count in result vec
+  count_trans[i] <- nrow(transactionData[transactionData$DATE == unique(transactionData$DATE)[i]])
+}
+
+# rename names of count_trans
+names(count_trans) <- unique(transactionData$DATE)
+
+# sort transaction dates
+names(count_trans) <- sort(names(count_trans))
+
+# get number of dates
+length(count_trans)
+
+```
+
+There's only 364 rows, meaning only 364 dates which indicates a missing date. Let's
+create a sequence of dates from 1 Jul 2018 to 30 Jun 2019 and use this to create a
+chart of number of transactions over time to find the missing date.
+
+```{r fig.align = "center"}
+#### Create a sequence of dates and join this the count of transactions by date
+# Over to you - create a column of dates that includes every day from 1 Jul 2018 to 30 Jun 2019, and join it onto the data to fill in the missing day.
+
+dates_seq <- character(0)
+
+for(i in seq_len(365))
+{
+  dates_seq <- c(dates_seq, format(as.Date(i, origin = "2018-06-30"), "%Y-%m-%d"))
+}
+
+
+
+#### Setting plot themes to format graphs
+theme_set(theme_bw())
+theme_update(plot.title = element_text(hjust = 0.5))
+
+#### Plot transactions over time
+ggplot(transactions_by_day, aes(x = DATE, y = N)) +
+ geom_line() +
+ labs(x = "Day", y = "Number of transactions", title = "Transactions over time") +
+ scale_x_date(breaks = "1 month") +
+ theme(axis.text.x = element_text(angle = 90, vjust = 0.5))
 
 ```
