@@ -61,6 +61,8 @@ library(ggplot2)
 library(ggmosaic)
 library(readr)
 library(plyr)
+library(dplyr)
+library(lubridate)
 
 #### Point the filePath to where you have downloaded the datasets to and 
 #### assign the data files to data.tables
@@ -286,17 +288,118 @@ for(i in seq_len(365))
   dates_seq <- c(dates_seq, format(as.Date(i, origin = "2018-06-30"), "%Y-%m-%d"))
 }
 
+transactions_by_day <- transactionData %>% group_by(DATE) %>% summarise(sum(PROD_QTY))
+names(transactions_by_day)
 
+# make full transactions dataframe
+full_transactions_by_day <- list()
+full_transactions_by_day$DATE <- as.Date(dates_seq)
+full_transactions_by_day <- data.frame(full_transactions_by_day)
+transactions_by_day <- left_join(full_transactions_by_day,transactions_by_day, by = "DATE")
 
 #### Setting plot themes to format graphs
 theme_set(theme_bw())
 theme_update(plot.title = element_text(hjust = 0.5))
 
+# change col names
+names(transactions_by_day) <- c("DATE","COUNT")
+
 #### Plot transactions over time
-ggplot(transactions_by_day, aes(x = DATE, y = N)) +
+ggplot(transactions_by_day, aes(x = DATE, y = COUNT)) +
  geom_line() +
  labs(x = "Day", y = "Number of transactions", title = "Transactions over time") +
  scale_x_date(breaks = "1 month") +
  theme(axis.text.x = element_text(angle = 90, vjust = 0.5))
+
+```
+We can see that there is an increase in purchases in December and a break in late
+December. Let's zoom in on this.
+```{r fig.align = "center"}
+#### Filter to December and look at individual days
+# Over to you - recreate the chart above zoomed in to the relevant dates.
+
+ggplot(transactions_by_day, aes(x = DATE, y = COUNT)) +
+ geom_line() +
+ labs(x = "Day", y = "Number of transactions", title = "Transactions over time") +
+ scale_x_date(breaks = "1 day", limits = as.Date(c("2018-12-01","2018-12-31"))) +
+ theme(axis.text.x = element_text(angle = 90, vjust = 0.5))
+
+```
+We can see that the increase in sales occurs in the lead-up to Christmas and that
+there are zero sales on Christmas day itself. This is due to shops being closed on
+Christmas day.
+Now that we are satisfied that the data no longer has outliers, we can move on to
+creating other features such as brand of chips or pack size from PROD_NAME. We will
+start with pack size.
+```{r Create pack size}
+#### Pack size
+#### We can work this out by taking the digits that are in PROD_NAME
+transactionData[, PACK_SIZE := parse_number(PROD_NAME)]
+#### Always check your output
+#### Let's check if the pack sizes look sensible
+transactionData[, .N, PACK_SIZE][order(PACK_SIZE)]
+```
+The largest size is 380g and the smallest size is 70g - seems sensible!
+```{r }
+#### Let's plot a histogram of PACK_SIZE since we know that it is a categorical variable and not a continuous variable even though it is numeric.
+# Over to you! Plot a histogram showing the number of transactions by pack size.
+
+ggplot(transactionData[, .N, PACK_SIZE]) + geom_histogram(aes(x = PACK_SIZE, y = N), stat="identity") + labs(x = "Pack Size", y = "Count", title = "Pack Size Count")
+
+```
+Pack sizes created look reasonable.
+Now to create brands, we can use the first word in PROD_NAME to work out the brand
+name...
+```{r Create brand name}
+#### Brands
+# Over to you! Create a column which contains the brand of the product, by extracting it from the product name.
+
+# subset the first word from the name as the brand
+# parse through names of each row and strsplit
+transactionData <- transactionData %>% mutate(BRAND = str_split(PROD_NAME, " ", simplify = TRUE)[,1])
+
+#### Checking brands
+# Over to you! Check the results look reasonable.
+
+unique(transactionData[,BRAND])
+
+```
+Some of the brand names look like they are of the same brands - such as RED and
+RRD, which are both Red Rock Deli chips. Let's combine these together.
+
+```{r Clean brand names}
+#### Clean brand names
+transactionData[BRAND == "RED", BRAND := "RRD"]
+# Over to you! Add any additional brand adjustments you think may be required.
+
+transactionData[BRAND == "Infuzions", BRAND := "Infzns"]
+
+transactionData[BRAND == "Woolworths", BRAND := "WW"]
+
+transactionData[BRAND == "Natural", BRAND := "NCC"]
+
+transactionData[BRAND == "Grain", BRAND := "GrnWves"]
+
+transactionData[BRAND == "Sunbites", BRAND := "Snbts"]
+
+transactionData[BRAND == "Smith", BRAND:="Smiths"]
+
+#### Check again
+# Over to you! Check the results look reasonable.
+
+unique(transactionData[,BRAND])
+
+```
+### Examining customer data
+Now that we are happy with the transaction dataset, let's have a look at the
+customer dataset.
+
+```{r 1 Exploratory data analysis}
+#### Examining customer data
+# Over to you! Do some basic summaries of the dataset, including distributions of any key columns.
+
+summary(transactionData)
+
+
 
 ```
