@@ -63,6 +63,7 @@ library(readr)
 library(plyr)
 library(dplyr)
 library(lubridate)
+library(stringr)
 
 #### Point the filePath to where you have downloaded the datasets to and 
 #### assign the data files to data.tables
@@ -387,7 +388,7 @@ transactionData[BRAND == "Smith", BRAND:="Smiths"]
 #### Check again
 # Over to you! Check the results look reasonable.
 
-unique(transactionData[,BRAND])
+unique(transactionData[,"BRAND"])
 
 ```
 ### Examining customer data
@@ -400,6 +401,194 @@ customer dataset.
 
 summary(transactionData)
 
+# get distribution for total purchase for each store
+store_nbr_dist <- table(transactionData$STORE_NBR)
+# graph
+ggplot() + geom_bar(aes(x = as.numeric(names(store_nbr_dist)), y = store_nbr_dist), stat = "identity") + labs(x = "Store Number", y = "Total Purchases for each Store", title = "Purchases per Store")
 
+# store number 271 is missing
 
 ```
+
+```{r }
+#### Merge transaction data to customer data
+data <- merge(transactionData, customerData, all.x = TRUE)
+```
+
+As the number of rows in `data` is the same as that of `transactionData`, we can be
+sure that no duplicates were created. This is because we created `data` by setting
+`all.x = TRUE` (in other words, a left join) which means take all the rows in
+`transactionData` and find rows with matching values in shared columns and then
+joining the details in these rows to the `x` or the first mentioned table.
+
+Let's also check if some customers were not matched on by checking for nulls.
+```{r Check for missing customer details}
+# Over to you! See if any transactions did not have a matched customer.
+
+for(col in colnames(transactionData))
+{
+  print(any(is.na(data[,..col])))
+  print(any(is.null(data[,..col])))
+}
+
+```
+
+Great, there are no nulls! So all our customers in the transaction data has been
+accounted for in the customer dataset.
+Note that if you are continuing with Task 2, you may want to retain this dataset
+which you can write out as a csv
+```{r Code to save dataset as a csv}
+fwrite(data, paste0(filePath,"QVI_data.csv"))
+```
+Data exploration is now complete!
+
+## Data analysis on customer segments
+Now that the data is ready for analysis, we can define some metrics of interest to
+the client:
+- Who spends the most on chips (total sales), describing customers by lifestage and
+how premium their general purchasing behaviour is
+- How many customers are in each segment
+- How many chips are bought per customer by segment
+- What's the average chip price by customer segment
+We could also ask our data team for more information. Examples are:
+- The customer's total spend over the period and total spend for each transaction
+to understand what proportion of their grocery spend is on chips
+- Proportion of customers in each customer segment overall to compare against the
+mix of customers who purchase chips
+Let's start with calculating total sales by LIFESTAGE and PREMIUM_CUSTOMER and
+plotting the split by these segments to describe which customer segment contribute
+most to chip sales.
+```{r fig.width = 10, fig.align = "center"}
+#### Total sales by LIFESTAGE and PREMIUM_CUSTOMER
+# Over to you! Calculate the summary of sales by those dimensions and create a plot.
+
+cust_seg <- data[,c("TOT_SALES","LIFESTAGE","PREMIUM_CUSTOMER")]
+
+# parse through info, for each premium type and lifestyle
+sumPremLife <- function(df)
+{
+  
+  # make data frame holding:
+  # total sales, customer segment
+  res <- data.frame(matrix(ncol = 3))
+  
+  for(premStat in unique(df$PREMIUM_CUSTOMER))
+  {
+    for(lifeStat in unique(df$LIFESTAGE))
+    {
+      # filter data by premstat and lifestat
+      m <- df %>% filter(PREMIUM_CUSTOMER == premStat & LIFESTAGE == lifeStat)
+      
+      # sum total sales
+      totSales <- sum(m$TOT_SALES)
+      
+      # add onto matrix 
+      res <- rbind(res,c(paste0(premStat, " - ", lifeStat), totSales, nrow(m)))
+      
+    }
+  }
+  
+  # remove first row
+  res <- res[2:nrow(res),]
+  # reset indices
+  rownames(res) <- NULL
+  # name columns
+  colnames(res) <- c("Customer_Segment","Total_Sales", "N_Customer")
+  
+  return(res)
+}
+
+segdata <- sumPremLife(cust_seg)
+
+# plot
+ggplot(segdata) + geom_bar(aes(x = Customer_Segment, y = Total_Sales), stat = "identity") + theme(axis.text.x = element_text(angle = 90)) + labs(title = "Total Sales per Customer Premium/Lifestage Type", x = "Premium/Lifestage Type", y = "Total Sales")
+
+```
+
+Sales are coming mainly from Budget - older families, Mainstream - young
+singles/couples, and Mainstream - retirees
+Let's see if the higher sales are due to there being more customers who buy chips.
+
+```{r fig.width = 10, fig.align = "center"}
+#### Number of customers by LIFESTAGE and PREMIUM_CUSTOMER
+# Over to you! Calculate the summary of number of customers by those dimensions and create a plot.
+
+# subset all products with "chip" in product name
+cust_seg_chip <- data[grepl("CHIP",toupper(data$PROD_NAME)),c("TOT_SALES","LIFESTAGE","PREMIUM_CUSTOMER")]
+
+# prem life sum sales based on chip
+chip_premlife <- sumPremLife(cust_seg_chip)
+
+# plot
+ggplot(chip_premlife) + geom_bar(aes(x = Customer_Segment, y = Total_Sales), stat = "identity") + theme(axis.text.x = element_text(angle = 90)) + labs(title = "Total Sales per Customer Premium/Lifestage Type of Chips", x = "Premium/Lifestage Type", y = "Total Sales")
+
+```
+
+
+There are more Mainstream - young singles/couples and Mainstream - retirees who buy
+chips (though the most chips sales come from Budget - Older families). This contributes to there being more sales to these customer segments but this is not a major driver for the Budget - Older families segment.
+Higher sales may also be driven by more units of chips being bought per customer.
+Let's have a look at this next.
+
+```{r fig.width = 10, fig.align = "center"}
+#### Average number of units per customer by LIFESTAGE and PREMIUM_CUSTOMER
+# Over to you! Calculate and plot the average number of units per customer by those two dimensions.
+
+# change into numeric
+segdata$Total_Sales <- as.numeric(segdata$Total_Sales)
+segdata$N_Customer <- as.numeric(segdata$N_Customer)
+
+# mutate for avg column
+segdata_v1 <- segdata %>% mutate(Avg_Total = Total_Sales / N_Customer)
+
+# plot
+ggplot(segdata_v1) + geom_bar(aes(x = Customer_Segment, y = Avg_Total), stat = "identity") + theme(axis.text.x = element_text(angle = 90)) + labs(title = "Average Total Sales per Customer Premium/Lifestage Type", x = "Premium/Lifestage Type", y = "Average Total Sales")
+
+```
+
+Older families and young families (actually, Mainstream Midage families and Young singles/couples are the most) in general buy more chips per customer.
+Let's also investigate the average price per unit chips bought for each customer
+segment as this is also a driver of total sales.
+
+```{r fig.width = 10, fig.align = "center"}
+#### Average price per unit by LIFESTAGE and PREMIUM_CUSTOMER
+# Over to you! Calculate and plot the average price per unit sold (average sale price) by those two customer dimensions.
+
+# update to numeric versions
+chip_premlife <- chip_premlife %>% transform(Total_Sales = as.numeric(Total_Sales), N_Customer = as.numeric(N_Customer))
+
+# mutate average column
+chip_premlife_v1 <- chip_premlife %>% mutate(Avg_Total = Total_Sales / N_Customer)
+
+# plot
+ggplot(chip_premlife_v1) + geom_bar(aes(x = Customer_Segment, y = Avg_Total), stat = "identity") + theme(axis.text.x = element_text(angle = 90)) + labs(title = "Average Total Sales per Customer Premium/Lifestage Type - Chips Sales", x = "Premium/Lifestage Type", y = "Average Total Sales")
+
+```
+Mainstream midage and young singles and couples are more willing to pay more per
+packet of chips compared to their budget and premium counterparts. This may be due
+to premium shoppers being more likely to buy healthy snacks and when they buy
+chips, this is mainly for entertainment purposes rather than their own consumption.
+This is also supported by there being fewer premium midage and young singles and
+couples buying chips compared to their mainstream counterparts.
+
+As the difference in average price per unit isn't large, we can check if this difference is statistically different.
+
+
+```{r}
+#### Perform an independent t-test between mainstream vs premium and budget midage and
+#### young singles and couples
+# Over to you! Perform a t-test to see if the difference is significant.
+
+# get dataframe of average price of chip purchases of all midage and young singles/couples
+help(t.test)
+
+```
+The t-test results in a p-value of XXXXXXX, i.e. the unit price for mainstream,
+young and mid-age singles and couples [ARE / ARE NOT] significantly higher than
+that of budget or premium, young and midage singles and couples.
+## Deep dive into specific customer segments for insights
+We have found quite a few interesting insights that we can dive deeper into.
+We might want to target customer segments that contribute the most to sales to
+retain them or further increase sales. Let's look at Mainstream - young
+singles/couples. For instance, let's find out if they tend to buy a particular
+brand of chips.
