@@ -66,7 +66,7 @@ library(plyr)
 #### assign the data files to data.tables
 # over to you! fill in the path to your working directory. If you are on a Windows machine, you will need to use forward slashes (/) instead of backshashes (\)
 filePath <- paste0(getwd(),"/")
-transactionData <- fread(file = paste0(filePath,"QVI_transaction_data.xlsx - in.csv"), header = TRUE)
+transactionData <- fread(file = paste0(filePath,"QVI_transaction_data.csv"), header = TRUE)
 customerData <- fread(file = paste0(filePath,"QVI_purchase_behaviour.csv"), header = TRUE)
 
 ```
@@ -286,17 +286,186 @@ for(i in seq_len(365))
   dates_seq <- c(dates_seq, format(as.Date(i, origin = "2018-06-30"), "%Y-%m-%d"))
 }
 
+# rename
+transactions_by_day <- list()
+transactions_by_day$DATE <- names(count_trans)
+# remove names to just get data
+names(count_trans) <- NULL
+transactions_by_day$N <- count_trans
 
+# make into dataframe
+transactions_by_day <- data.frame(transactions_by_day)
+
+# rbind all days not in dates with 0
+transactions_by_day <- rbind(transactions_by_day, c(dates_seq[!(dates_seq %in% transactions_by_day$DATE)], 0))
+
+# re-sort dataframe by date
+transactions_by_day <- transactions_by_day[order(transactions_by_day$DATE),]
+
+# change all character dates in dataframe to data obj
+transactions_by_day$DATE <- as.Date(transactions_by_day$DATE,"%Y-%m-%d")
+
+# change N column to numeric
+transactions_by_day$N <- as.numeric(transactions_by_day$N)
 
 #### Setting plot themes to format graphs
 theme_set(theme_bw())
 theme_update(plot.title = element_text(hjust = 0.5))
 
 #### Plot transactions over time
-ggplot(transactions_by_day, aes(x = DATE, y = N)) +
- geom_line() +
- labs(x = "Day", y = "Number of transactions", title = "Transactions over time") +
- scale_x_date(breaks = "1 month") +
- theme(axis.text.x = element_text(angle = 90, vjust = 0.5))
+ggplot(data = transactions_by_day, mapping = aes(x = DATE, y = N)) + geom_line() + labs(x = "Day", y = "Number of Transactions", title = "Transactions over Time") + scale_x_date(date_labels = "%Y-%m-%d", date_breaks = "1 month") + theme(axis.text.x = element_text(angle = 90, vjust = 0.5))
+
+```
+We can see that there is an increase in purchases in December and a break in late
+December. Let's zoom in on this.
+
+```{r fig.align = "center"}
+#### Filter to December and look at individual days
+# Over to you - recreate the chart above zoomed in to the relevant dates.
+
+ggplot(data = transactions_by_day, mapping = aes(x = DATE, y = N)) + geom_line() + labs(x = "Day", y = "Number of Transactions", title = "Transactions over Time") + scale_x_date(date_labels = "%Y-%m-%d", date_breaks = "1 day") + theme(axis.text.x = element_text(angle = 90, vjust = 0.5)) + coord_cartesian(xlim = c(as.Date("2018-12-01"),as.Date("2018-12-31")))
+
+```
+We can see that the increase in sales occurs in the lead-up to Christmas and that there are zero sales on Christmas day itself. This is due to shops being closed on
+Christmas day.
+Now that we are satisfied that the data no longer has outliers, we can move on to
+creating other features such as brand of chips or pack size from PROD_NAME. We will
+start with pack size.
+
+```{r Create pack size}
+#### Pack size
+#### We can work this out by taking the digits that are in PROD_NAME
+
+transactionData[, PACK_SIZE := parse_number(PROD_NAME)]
+
+#### Always check your output
+#### Let's check if the pack sizes look sensible
+transactionData[, .N, PACK_SIZE][order(PACK_SIZE)]
+
+```
+
+The largest size is 380g and the smallest size is 70g - seems sensible!
+
+```{r }
+#### Let's plot a histogram of PACK_SIZE since we know that it is a categorical variable and not a continuous variable even though it is numeric.
+# Over to you! Plot a histogram showing the number of transactions by pack size.
+
+hist_pack <- as.data.frame(parse_number(transactionData$PROD_NAME))
+
+colnames(hist_pack) <- "count"
+
+ggplot(hist_pack, aes(x = count)) + geom_bar() + labs(x = "Pack Size (grams)", y = "Count of Packs")
+
+```
+
+Pack sizes created look reasonable.
+Now to create brands, we can use the first word in PROD_NAME to work out the brand
+name...
+
+```{r Create brand name}
+
+#### Brands
+# Over to you! Create a column which contains the brand of the product, by extracting it from the product name.
+
+BRAND <- character(0)
+
+# for each observation, strsplit and get the first word and append onto vector of brand
+for(i in seq_len(nrow(transactionData)))
+{
+  BRAND <- c(BRAND, strsplit(transactionData$PROD_NAME[i], split = " ")[[1]][1])
+}
+
+# append as column
+transactionData <- cbind(transactionData, BRAND)
+
+#### Checking brands
+# Over to you! Check the results look reasonable.
+unique(transactionData$BRAND)
+```
+Some of the brand names look like they are of the same brands - such as RED and
+RRD, which are both Red Rock Deli chips. Let's combine these together.
+
+```{r Clean brand names}
+#### Clean brand names
+transactionData[BRAND == "Red", BRAND := "RRD"]
+# Over to you! Add any additional brand adjustments you think may be required.
+
+transactionData[BRAND == "Snbts", BRAND := "Sunbites"]
+transactionData[BRAND == "Infzns", BRAND := "Infuzions"]
+transactionData[BRAND == "Grain", BRAND := "Grain Waves"]
+transactionData[BRAND == "GrnWves", BRAND := "Grain Waves"]
+transactionData[BRAND == "RRD", BRAND := "Red Rock Deli"]
+
+#### Check again
+# Over to you! Check the results look reasonable.
+unique(transactionData$BRAND)
+
+```
+### Examining customer data
+Now that we are happy with the transaction dataset, let's have a look at the
+customer dataset.
+
+```{r 1 Exploratory data analysis}
+#### Examining customer data
+# Over to you! Do some basic summaries of the dataset, including distributions of any key columns.
+
+summary(customerData)
+
+# make visual distributions of lifestage
+ggplot(customerData, aes(x = LIFESTAGE)) + geom_bar() + labs(x = "Lifestage of Customer", y = "Amount") + theme(axis.text.x = element_text(angle = 90))
+
+# make visual distributions of customer status
+ggplot(customerData, aes(x = PREMIUM_CUSTOMER)) + geom_bar() + labs(x = "Status of Customer", y = "Amount") + theme(axis.text.x = element_text(angle = 90))
+
+```
+
+```{r }
+#### Merge transaction data to customer data
+data <- merge(transactionData, customerData, all.x = TRUE)
+```
+
+As the number of rows in `data` is the same as that of `transactionData`, we can be
+sure that no duplicates were created. This is because we created `data` by setting
+`all.x = TRUE` (in other words, a left join) which means take all the rows in
+`transactionData` and find rows with matching values in shared columns and then
+joining the details in these rows to the `x` or the first mentioned table.
+Let's also check if some customers were not matched on by checking for nulls.
+```{r Check for missing customer details}
+# Over to you! See if any transactions did not have a matched customer.
+
+any(is.na(data$LYLTY_CARD_NBR))
+
+```
+
+Great, there are no nulls! So all our customers in the transaction data has been
+accounted for in the customer dataset.
+Note that if you are continuing with Task 2, you may want to retain this dataset
+which you can write out as a csv
+
+```{r Code to save dataset as a csv}
+fwrite(data, paste0(filePath,"QVI_data.csv"))
+```
+
+Data exploration is now complete!
+
+## Data analysis on customer segments
+
+Now that the data is ready for analysis, we can define some metrics of interest to
+the client:
+- Who spends the most on chips (total sales), describing customers by lifestage and how premium their general purchasing behaviour is
+- How many customers are in each segment
+- How many chips are bought per customer by segment
+- What's the average chip price by customer segment
+We could also ask our data team for more information. Examples are:
+- The customer's total spend over the period and total spend for each transaction
+to understand what proportion of their grocery spend is on chips
+- Proportion of customers in each customer segment overall to compare against the
+mix of customers who purchase chips
+Let's start with calculating total sales by LIFESTAGE and PREMIUM_CUSTOMER and
+plotting the split by these segments to describe which customer segment contribute
+most to chip sales.
+```{r fig.width = 10, fig.align = "center"}
+#### Total sales by LIFESTAGE and PREMIUM_CUSTOMER
+# Over to you! Calculate the summary of sales by those dimensions and create a plot.
 
 ```
