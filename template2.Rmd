@@ -1,0 +1,111 @@
+---
+title: "Quantium Virtual Internship - Retail Strategy and Analytics - Task 2"
+mainfont: Roboto
+monofont: Consolas
+output:
+ pdf_document:
+ df_print: default
+ highlight: tango
+ keep_tex: yes
+ latex_engine: xelatex
+header-includes:
+ \usepackage{fvextra}
+
+\DefineVerbatimEnvironment{Highlighting}{Verbatim}{breaklines,commandchars=\\\{\}}
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(linewidth=80)
+```
+```{r knitr line wrap setup, include=FALSE}
+library(knitr)
+hook_output = knit_hooks$get("output")
+knit_hooks$set(output = function(x, options)
+{
+ # this hook is used only when the linewidth option is not NULL
+ if (!is.null(n <- options$linewidth))
+ {
+ x = knitr:::split_lines(x)
+ # any lines wider than n should be wrapped
+ if (any(nchar(x) > n))
+ x = strwrap(x, width = n)
+ x = paste(x, collapse = "\n")
+ }
+ hook_output(x, options)
+})
+```
+# Solution template for Task 2
+This file is a solution template for the Task 2 of the Quantium Virtual Internship.
+It will walk you through the analysis, providing the scaffolding for your solution
+with gaps left for you to fill in yourself.
+Look for comments that say "over to you" for places where you need to add your own
+code! 
+Often, there will be hints about what to do or what function to use in the text
+leading up to a code block - if you need a bit of extra help on how to use a
+function, the internet has many excellent resources on R coding, which you can find
+using your favourite search engine.
+## Load required libraries and datasets
+Note that you will need to install these libraries if you have never used these
+before.
+```{r 0. Load libraries, include = FALSE}
+library(data.table)
+library(ggplot2)
+library(tidyr)
+library(tidyverse)
+library(ggplot2)
+```
+#### Point the filePath to where you have downloaded the datasets to and
+#### assign the data files to data.tables
+```{r 1. Read in data from previous module}
+# Over to you! Fill in the path to your working directory. If you are on a Windows machine, you will need to use forward slashes (/) instead of backshashes (\)
+# SET FILEPATH AS QUANTIUM-PROGRAM
+filePath <- paste0(getwd(),"/")
+data <- fread(paste0(filePath,"QVI_data.csv"))
+#### Set themes for plots
+theme_set(theme_bw())
+theme_update(plot.title = element_text(hjust = 0.5))
+```
+
+## Select control stores
+The client has selected store numbers 77, 86 and 88 as trial stores and want
+control stores to be established stores that are operational for the entire
+observation period.
+We would want to match trial stores to control stores that are similar to the trial
+store prior to the trial period of Feb 2019 in terms of :
+- Monthly overall sales revenue
+- Monthly number of customers
+- Monthly number of transactions per customer
+Let's first create the metrics of interest and filter to stores that are present
+throughout the pre-trial period.
+```{r Select control stores}
+#### Calculate these measures over time for each store
+#### Over to you! Add a new month ID column in the data with the format yyyymm.
+data[, YEARMONTH := as.numeric(format(data$DATE, "%Y%m"))]
+
+#### Next, we define the measure calculations to use during the analysis.
+# Over to you! For each store and month calculate total sales, number of customers, transactions per customer, chips per customer and the average price per unit.
+## Hint: you can use uniqueN() to count distinct values in a column
+
+unique_store <- unique(data$STORE_NBR)[order(unique(data$STORE_NBR))]
+unique_month <- unique(data$YEARMONTH)[order(unique(data$YEARMONTH))]
+
+measureOverTime <- data %>% group_by(STORE_NBR,YEARMONTH) %>% arrange(STORE_NBR,YEARMONTH) %>% summarize(totSales = sum(TOT_SALES))
+
+measureOverTime$nCustomers <- (data %>% group_by(STORE_NBR,YEARMONTH) %>% arrange(STORE_NBR,YEARMONTH) %>% summarize(nCustomers = uniqueN(LYLTY_CARD_NBR)))[[3]]
+measureOverTime$nTxnPerCust <- (data %>% group_by(STORE_NBR,YEARMONTH) %>% arrange(STORE_NBR,YEARMONTH) %>% summarize(nTxnPerCust = n()/uniqueN(LYLTY_CARD_NBR)))[[3]]
+                # nTxnPerCust := , 
+                # nChipsPerTxn := (data %>% group_by(STORE_NBR,YEARMONTH) %>% arrange(STORE_NBR,YEARMONTH) %>% summarize(nChipsPerTxn = sum(PROD_QTY)/n()))[3], 
+                # avgPricePerUnit := (data %>% group_by(STORE_NBR,YEARMONTH) %>% arrange(STORE_NBR,YEARMONTH) %>% summarize(avgPricePerUnit = sum(TOT_SALES)/sum(PROD_QTY)))[3]
+                # ]
+
+
+measureOverTime <- data %>% group_by(STORE_NBR,YEARMONTH) %>% arrange(STORE_NBR,YEARMONTH) %>% summarize(totSales = sum(TOT_SALES), nCustomers = uniqueN(LYLTY_CARD_NBR), nTxnPerCust = n()/uniqueN(LYLTY_CARD_NBR), nChipsPerTxn = sum(PROD_QTY)/n(), avgPricePerUnit = sum(TOT_SALES)/sum(PROD_QTY))
+
+#### Filter to the pre-trial period and stores with full observation periods
+storesWithFullObs <- measureOverTime %>% group_by(STORE_NBR) %>% count() %>% filter(n == 12) %>% pull(STORE_NBR)
+preTrialMeasures <- measureOverTime %>% filter(YEARMONTH < 201902)
+
+storesWithFullObs <- unique(measureOverTime[, .N, STORE_NBR][N == 12, STORE_NBR])
+preTrialMeasures <- measureOverTime[YEARMONTH < 201902 & STORE_NBR %in% storesWithFullObs,]
+
+```

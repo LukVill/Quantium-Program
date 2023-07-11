@@ -64,6 +64,8 @@ library(plyr)
 library(dplyr)
 library(lubridate)
 library(stringr)
+library(arules)
+library(arulesViz)
 
 #### Point the filePath to where you have downloaded the datasets to and 
 #### assign the data files to data.tables
@@ -458,7 +460,7 @@ mix of customers who purchase chips
 Let's start with calculating total sales by LIFESTAGE and PREMIUM_CUSTOMER and
 plotting the split by these segments to describe which customer segment contribute
 most to chip sales.
-```{r fig.width = 10, fig.align = "center"}
+```{r fig.width = 10, fig.height= 7, fig.align = "center"}
 #### Total sales by LIFESTAGE and PREMIUM_CUSTOMER
 # Over to you! Calculate the summary of sales by those dimensions and create a plot.
 
@@ -500,16 +502,17 @@ sumPremLife <- function(df)
 
 segdata <- sumPremLife(cust_seg)
 
+
 # plot
 ggplot(segdata) + geom_bar(aes(x = Customer_Segment, y = Total_Sales), stat = "identity") + theme(axis.text.x = element_text(angle = 90)) + labs(title = "Total Sales per Customer Premium/Lifestage Type", x = "Premium/Lifestage Type", y = "Total Sales")
 
 ```
 
 Sales are coming mainly from Budget - older families, Mainstream - young
-singles/couples, and Mainstream - retirees
+singles/couples, and Mainstream - Older retirees.
 Let's see if the higher sales are due to there being more customers who buy chips.
 
-```{r fig.width = 10, fig.align = "center"}
+```{r fig.width = 10, fig.height = 7, fig.align = "center"}
 #### Number of customers by LIFESTAGE and PREMIUM_CUSTOMER
 # Over to you! Calculate the summary of number of customers by those dimensions and create a plot.
 
@@ -525,12 +528,12 @@ ggplot(chip_premlife) + geom_bar(aes(x = Customer_Segment, y = Total_Sales), sta
 ```
 
 
-There are more Mainstream - young singles/couples and Mainstream - retirees who buy
-chips (though the most chips sales come from Budget - Older families). This contributes to there being more sales to these customer segments but this is not a major driver for the Budget - Older families segment.
+There are more Budget - Older families, Mainstream - young singles/couples and Mainstream - retirees who buy
+chips. This contributes to there being more sales to these customer segments but this is not a major driver for the Budget - Older families segment.
 Higher sales may also be driven by more units of chips being bought per customer.
 Let's have a look at this next.
 
-```{r fig.width = 10, fig.align = "center"}
+```{r fig.width = 10, fig.height = 5, fig.align = "center"}
 #### Average number of units per customer by LIFESTAGE and PREMIUM_CUSTOMER
 # Over to you! Calculate and plot the average number of units per customer by those two dimensions.
 
@@ -546,11 +549,11 @@ ggplot(segdata_v1) + geom_bar(aes(x = Customer_Segment, y = Avg_Total), stat = "
 
 ```
 
-Older families and young families (actually, Mainstream Midage families and Young singles/couples are the most) in general buy more chips per customer.
+Mainstream Midage families and Young singles/couples in general buy more chips per customer.
 Let's also investigate the average price per unit chips bought for each customer
 segment as this is also a driver of total sales.
 
-```{r fig.width = 10, fig.align = "center"}
+```{r fig.width = 10, fig.height = 5, fig.align = "center"}
 #### Average price per unit by LIFESTAGE and PREMIUM_CUSTOMER
 # Over to you! Calculate and plot the average price per unit sold (average sale price) by those two customer dimensions.
 
@@ -579,12 +582,24 @@ As the difference in average price per unit isn't large, we can check if this di
 #### young singles and couples
 # Over to you! Perform a t-test to see if the difference is significant.
 
-# get dataframe of average price of chip purchases of all midage and young singles/couples
-help(t.test)
+# get dataframe of chip purchases of all midage and young singles/couples
+chip_t_test <- cust_seg_chip[LIFESTAGE == "YOUNG SINGLES/COUPLES" | LIFESTAGE == "MIDAGE SINGLES/COUPLES",]
+
+# mainstream filter
+ms <- chip_t_test[PREMIUM_CUSTOMER == "Mainstream"]
+
+# not mainstream filter
+nms <- chip_t_test[PREMIUM_CUSTOMER != "Mainstream"]
+
+# test mainstream vs not mainstream
+# with equal variance
+t.test(x = ms$TOT_SALES, y = nms$TOT_SALES, alternative = "g", var.equal = T, conf.level = 0.95)
+# not equal variance
+t.test(x = ms$TOT_SALES, y = nms$TOT_SALES, alternative = "g", var.equal = F, conf.level = 0.95)
 
 ```
-The t-test results in a p-value of XXXXXXX, i.e. the unit price for mainstream,
-young and mid-age singles and couples [ARE / ARE NOT] significantly higher than
+The t-test results in a p-value of < 2.2e-16, i.e. the unit price for mainstream,
+young and mid-age singles and couples are significantly higher than
 that of budget or premium, young and midage singles and couples.
 ## Deep dive into specific customer segments for insights
 We have found quite a few interesting insights that we can dive deeper into.
@@ -592,3 +607,122 @@ We might want to target customer segments that contribute the most to sales to
 retain them or further increase sales. Let's look at Mainstream - young
 singles/couples. For instance, let's find out if they tend to buy a particular
 brand of chips.
+
+```{r fig.align = "center"}
+#### Deep dive into Mainstream, young singles/couples
+# Over to you! Work out of there are brands that these two customer segments prefer more than others. You could use a technique called affinity analysis or a-priori analysis (or any other method if you prefer)
+
+# make frequency plot of different brands for young mid age singles/couples
+life_prem_brand_data <- data[(LIFESTAGE == "YOUNG SINGLES/COUPLES" | LIFESTAGE == "MIDAGE SINGLES/COUPLES") & grepl("CHIP",toupper(data$PROD_NAME)),c("LYLTY_CARD_NBR","PROD_NAME","LIFESTAGE","PREMIUM_CUSTOMER","BRAND")]
+
+freq_brand <- table(life_prem_brand_data$BRAND)
+
+ggplot() + geom_bar(aes(x = names(freq_brand), y = freq_brand), stat="identity") + labs(title = "Frequencies of Chip Brand Purchases for Young and Midage Singles/Couples", x = "Brand Name", y = "Frequency")
+sum(freq_brand)
+
+# prepare data to convert into transactions for apriori
+
+# get for young
+
+young_brand <- life_prem_brand_data[LIFESTAGE == "YOUNG SINGLES/COUPLES","BRAND"]
+young_trans <- life_prem_brand_data[LIFESTAGE == "YOUNG SINGLES/COUPLES","LYLTY_CARD_NBR"]
+
+# change into factors
+young_brand <- factor(young_brand$BRAND)
+young_trans <- factor(young_trans$LYLTY_CARD_NBR)
+
+young_transactions <- split(young_brand,young_trans)
+
+young_rules <- apriori(young_transactions, parameter = list(supp = 0.0001, conf = 0.8))
+# remove empty col
+young_rules_df <- inspect(young_rules) %>% select(-2)
+
+# get rules of young, focus on support for more frequent combinations
+young_rules_df %>% arrange(desc(support))
+
+# get for midage
+mid_brand <- life_prem_brand_data[LIFESTAGE == "MIDAGE SINGLES/COUPLES","BRAND"]
+mid_trans <- life_prem_brand_data[LIFESTAGE == "MIDAGE SINGLES/COUPLES","LYLTY_CARD_NBR"]
+
+mid_brand <- factor(mid_brand$BRAND)
+mid_trans <- factor(mid_trans$LYLTY_CARD_NBR)
+
+mid_transactions <- split(mid_brand, mid_trans)
+
+mid_rules <- apriori(mid_transactions,parameter = list(supp = 0.0001, conf = 0.8))
+
+mid_rules_df <- inspect(mid_rules) %>% select(-2)
+
+mid_rules_df %>% arrange(desc(support))
+
+
+# do it for the rest of the population
+
+life_prem_brand_data_v2 <- data[(LIFESTAGE != "YOUNG SINGLES/COUPLES" & LIFESTAGE != "MIDAGE SINGLES/COUPLES") & grepl("CHIP",toupper(data$PROD_NAME)),c("LYLTY_CARD_NBR","PROD_NAME","LIFESTAGE","PREMIUM_CUSTOMER","BRAND")]
+
+# prepare data to convert into transactions for apriori
+
+other_brand <- life_prem_brand_data_v2[,"BRAND"]
+other_trans <- life_prem_brand_data_v2[,"LYLTY_CARD_NBR"]
+
+
+# change into factor
+other_brand <- factor(other_brand$BRAND)
+other_trans <- factor(other_trans$LYLTY_CARD_NBR)
+
+# make transactions list
+other_transactions <- split(other_brand,other_trans)
+
+# apriori
+other_rules <- apriori(other_transactions, parameter = list(supp = 0, conf = 0.8))
+
+other_rules_df <- inspect(other_rules) %>% select(-2)
+
+other_rules_df <- other_rules_df %>% arrange(desc(support))
+
+```
+We can see that:
+
+NCC and WW are the most common brands bought by young and midage singles/couples.
+
+Cobbs, French, and Tostitos seem to be the most popular for other customer segments.
+
+Let's also find out if our target segment tends to buy larger packs of chips.
+```{r fig.align = "center"}
+#### Preferred pack size compared to the rest of the population
+# Over to you! Do the same for pack size.
+
+# do t test if average packsize is higher for mainstream young singles/couples as opposed to others
+
+# get mainstream young singles/couples
+ms_young <- data[LIFESTAGE == "YOUNG SINGLES/COUPLES" & PREMIUM_CUSTOMER == "Mainstream",]
+# get others
+not_ms_young <- data[xor(LIFESTAGE != "YOUNG SINGLES/COUPLES", PREMIUM_CUSTOMER != "Mainstream"),]
+
+
+# apriori for ms_young
+ms_young_pack <- factor(ms_young$PACK_SIZE)
+ms_young_id <- factor(ms_young$LYLTY_CARD_NBR)
+
+ms_young_trans <- split(ms_young_pack,ms_young_id)
+
+ms_young_rules <- apriori(ms_young_trans, parameter = list(supp = 0.001, conf = 0.8))
+ms_young_rules_df <- inspect(ms_young_rules) %>% select(-2) %>% arrange(desc(support))
+
+
+# apriori for not_ms_young
+not_ms_young_pack <- factor(not_ms_young$PACK_SIZE)
+not_ms_young_id <- factor(not_ms_young$LYLTY_CARD_NBR)
+
+not_ms_young_trans <- split(not_ms_young_pack, not_ms_young_id)
+
+not_ms_young_rules <- apriori(not_ms_young_trans, parameter = list(supp = 0.001,conf = 0.8))
+not_ms_young_rules_df <- inspect(not_ms_young_rules) %>% select(-2) %>% arrange(desc(support))
+
+```
+Mainstream-Young Singles/Couples tend to pick 90, 330, and 380 grams for their pack size.
+
+Other segments tend to pick 150 and 170 grams.
+
+This shows mainstream young singles/couples either pick small chips or very large chips, while other segments tend to pick sizes in the middle.
+
