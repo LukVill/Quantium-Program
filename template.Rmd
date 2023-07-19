@@ -61,12 +61,17 @@ library(ggplot2)
 library(ggmosaic)
 library(readr)
 library(plyr)
+library(dplyr)
+library(lubridate)
+library(stringr)
+library(arules)
+library(arulesViz)
 
 #### Point the filePath to where you have downloaded the datasets to and 
 #### assign the data files to data.tables
 # over to you! fill in the path to your working directory. If you are on a Windows machine, you will need to use forward slashes (/) instead of backshashes (\)
 filePath <- paste0(getwd(),"/")
-transactionData <- fread(file = paste0(filePath,"QVI_transaction_data.csv"), header = TRUE)
+transactionData <- fread(file = paste0(filePath,"QVI_transaction_data.xlsx - in.csv"), header = TRUE)
 customerData <- fread(file = paste0(filePath,"QVI_purchase_behaviour.csv"), header = TRUE)
 
 ```
@@ -286,119 +291,106 @@ for(i in seq_len(365))
   dates_seq <- c(dates_seq, format(as.Date(i, origin = "2018-06-30"), "%Y-%m-%d"))
 }
 
-# rename
-transactions_by_day <- list()
-transactions_by_day$DATE <- names(count_trans)
-# remove names to just get data
-names(count_trans) <- NULL
-transactions_by_day$N <- count_trans
+transactions_by_day <- transactionData %>% group_by(DATE) %>% summarise(sum(PROD_QTY))
+names(transactions_by_day)
 
-# make into dataframe
-transactions_by_day <- data.frame(transactions_by_day)
-
-# rbind all days not in dates with 0
-transactions_by_day <- rbind(transactions_by_day, c(dates_seq[!(dates_seq %in% transactions_by_day$DATE)], 0))
-
-# re-sort dataframe by date
-transactions_by_day <- transactions_by_day[order(transactions_by_day$DATE),]
-
-# change all character dates in dataframe to data obj
-transactions_by_day$DATE <- as.Date(transactions_by_day$DATE,"%Y-%m-%d")
-
-# change N column to numeric
-transactions_by_day$N <- as.numeric(transactions_by_day$N)
+# make full transactions dataframe
+full_transactions_by_day <- list()
+full_transactions_by_day$DATE <- as.Date(dates_seq)
+full_transactions_by_day <- data.frame(full_transactions_by_day)
+transactions_by_day <- left_join(full_transactions_by_day,transactions_by_day, by = "DATE")
 
 #### Setting plot themes to format graphs
 theme_set(theme_bw())
 theme_update(plot.title = element_text(hjust = 0.5))
 
+# change col names
+names(transactions_by_day) <- c("DATE","COUNT")
+
 #### Plot transactions over time
-ggplot(data = transactions_by_day, mapping = aes(x = DATE, y = N)) + geom_line() + labs(x = "Day", y = "Number of Transactions", title = "Transactions over Time") + scale_x_date(date_labels = "%Y-%m-%d", date_breaks = "1 month") + theme(axis.text.x = element_text(angle = 90, vjust = 0.5))
+ggplot(transactions_by_day, aes(x = DATE, y = COUNT)) +
+ geom_line() +
+ labs(x = "Day", y = "Number of transactions", title = "Transactions over time") +
+ scale_x_date(breaks = "1 month") +
+ theme(axis.text.x = element_text(angle = 90, vjust = 0.5))
 
 ```
 We can see that there is an increase in purchases in December and a break in late
 December. Let's zoom in on this.
-
 ```{r fig.align = "center"}
 #### Filter to December and look at individual days
 # Over to you - recreate the chart above zoomed in to the relevant dates.
 
-ggplot(data = transactions_by_day, mapping = aes(x = DATE, y = N)) + geom_line() + labs(x = "Day", y = "Number of Transactions", title = "Transactions over Time") + scale_x_date(date_labels = "%Y-%m-%d", date_breaks = "1 day") + theme(axis.text.x = element_text(angle = 90, vjust = 0.5)) + coord_cartesian(xlim = c(as.Date("2018-12-01"),as.Date("2018-12-31")))
+ggplot(transactions_by_day, aes(x = DATE, y = COUNT)) +
+ geom_line() +
+ labs(x = "Day", y = "Number of transactions", title = "Transactions over time") +
+ scale_x_date(breaks = "1 day", limits = as.Date(c("2018-12-01","2018-12-31"))) +
+ theme(axis.text.x = element_text(angle = 90, vjust = 0.5))
 
 ```
-We can see that the increase in sales occurs in the lead-up to Christmas and that there are zero sales on Christmas day itself. This is due to shops being closed on
+We can see that the increase in sales occurs in the lead-up to Christmas and that
+there are zero sales on Christmas day itself. This is due to shops being closed on
 Christmas day.
 Now that we are satisfied that the data no longer has outliers, we can move on to
 creating other features such as brand of chips or pack size from PROD_NAME. We will
 start with pack size.
-
 ```{r Create pack size}
 #### Pack size
 #### We can work this out by taking the digits that are in PROD_NAME
-
 transactionData[, PACK_SIZE := parse_number(PROD_NAME)]
-
 #### Always check your output
 #### Let's check if the pack sizes look sensible
 transactionData[, .N, PACK_SIZE][order(PACK_SIZE)]
-
 ```
-
 The largest size is 380g and the smallest size is 70g - seems sensible!
-
 ```{r }
 #### Let's plot a histogram of PACK_SIZE since we know that it is a categorical variable and not a continuous variable even though it is numeric.
 # Over to you! Plot a histogram showing the number of transactions by pack size.
 
-hist_pack <- as.data.frame(parse_number(transactionData$PROD_NAME))
-
-colnames(hist_pack) <- "count"
-
-ggplot(hist_pack, aes(x = count)) + geom_bar() + labs(x = "Pack Size (grams)", y = "Count of Packs")
+ggplot(transactionData[, .N, PACK_SIZE]) + geom_histogram(aes(x = PACK_SIZE, y = N), stat="identity") + labs(x = "Pack Size", y = "Count", title = "Pack Size Count")
 
 ```
-
 Pack sizes created look reasonable.
 Now to create brands, we can use the first word in PROD_NAME to work out the brand
 name...
-
 ```{r Create brand name}
-
 #### Brands
 # Over to you! Create a column which contains the brand of the product, by extracting it from the product name.
 
-BRAND <- character(0)
-
-# for each observation, strsplit and get the first word and append onto vector of brand
-for(i in seq_len(nrow(transactionData)))
-{
-  BRAND <- c(BRAND, strsplit(transactionData$PROD_NAME[i], split = " ")[[1]][1])
-}
-
-# append as column
-transactionData <- cbind(transactionData, BRAND)
+# subset the first word from the name as the brand
+# parse through names of each row and strsplit
+transactionData <- transactionData %>% mutate(BRAND = str_split(PROD_NAME, " ", simplify = TRUE)[,1])
 
 #### Checking brands
 # Over to you! Check the results look reasonable.
-unique(transactionData$BRAND)
+
+unique(transactionData[,BRAND])
+
 ```
 Some of the brand names look like they are of the same brands - such as RED and
 RRD, which are both Red Rock Deli chips. Let's combine these together.
 
 ```{r Clean brand names}
 #### Clean brand names
-transactionData[BRAND == "Red", BRAND := "RRD"]
+transactionData[BRAND == "RED", BRAND := "RRD"]
 # Over to you! Add any additional brand adjustments you think may be required.
 
-transactionData[BRAND == "Snbts", BRAND := "Sunbites"]
-transactionData[BRAND == "Infzns", BRAND := "Infuzions"]
-transactionData[BRAND == "Grain", BRAND := "Grain Waves"]
-transactionData[BRAND == "GrnWves", BRAND := "Grain Waves"]
-transactionData[BRAND == "RRD", BRAND := "Red Rock Deli"]
+transactionData[BRAND == "Infuzions", BRAND := "Infzns"]
+
+transactionData[BRAND == "Woolworths", BRAND := "WW"]
+
+transactionData[BRAND == "Natural", BRAND := "NCC"]
+
+transactionData[BRAND == "Grain", BRAND := "GrnWves"]
+
+transactionData[BRAND == "Sunbites", BRAND := "Snbts"]
+
+transactionData[BRAND == "Smith", BRAND:="Smiths"]
 
 #### Check again
 # Over to you! Check the results look reasonable.
-unique(transactionData$BRAND)
+
+unique(transactionData[,"BRAND"])
 
 ```
 ### Examining customer data
@@ -409,13 +401,14 @@ customer dataset.
 #### Examining customer data
 # Over to you! Do some basic summaries of the dataset, including distributions of any key columns.
 
-summary(customerData)
+summary(transactionData)
 
-# make visual distributions of lifestage
-ggplot(customerData, aes(x = LIFESTAGE)) + geom_bar() + labs(x = "Lifestage of Customer", y = "Amount") + theme(axis.text.x = element_text(angle = 90))
+# get distribution for total purchase for each store
+store_nbr_dist <- table(transactionData$STORE_NBR)
+# graph
+ggplot() + geom_bar(aes(x = as.numeric(names(store_nbr_dist)), y = store_nbr_dist), stat = "identity") + labs(x = "Store Number", y = "Total Purchases for each Store", title = "Purchases per Store")
 
-# make visual distributions of customer status
-ggplot(customerData, aes(x = PREMIUM_CUSTOMER)) + geom_bar() + labs(x = "Status of Customer", y = "Amount") + theme(axis.text.x = element_text(angle = 90))
+# store number 271 is missing
 
 ```
 
@@ -429,11 +422,16 @@ sure that no duplicates were created. This is because we created `data` by setti
 `all.x = TRUE` (in other words, a left join) which means take all the rows in
 `transactionData` and find rows with matching values in shared columns and then
 joining the details in these rows to the `x` or the first mentioned table.
+
 Let's also check if some customers were not matched on by checking for nulls.
 ```{r Check for missing customer details}
 # Over to you! See if any transactions did not have a matched customer.
 
-any(is.na(data$LYLTY_CARD_NBR))
+for(col in colnames(transactionData))
+{
+  print(any(is.na(data[,..col])))
+  print(any(is.null(data[,..col])))
+}
 
 ```
 
@@ -441,18 +439,16 @@ Great, there are no nulls! So all our customers in the transaction data has been
 accounted for in the customer dataset.
 Note that if you are continuing with Task 2, you may want to retain this dataset
 which you can write out as a csv
-
 ```{r Code to save dataset as a csv}
 fwrite(data, paste0(filePath,"QVI_data.csv"))
 ```
-
 Data exploration is now complete!
 
 ## Data analysis on customer segments
-
 Now that the data is ready for analysis, we can define some metrics of interest to
 the client:
-- Who spends the most on chips (total sales), describing customers by lifestage and how premium their general purchasing behaviour is
+- Who spends the most on chips (total sales), describing customers by lifestage and
+how premium their general purchasing behaviour is
 - How many customers are in each segment
 - How many chips are bought per customer by segment
 - What's the average chip price by customer segment
@@ -464,8 +460,269 @@ mix of customers who purchase chips
 Let's start with calculating total sales by LIFESTAGE and PREMIUM_CUSTOMER and
 plotting the split by these segments to describe which customer segment contribute
 most to chip sales.
-```{r fig.width = 10, fig.align = "center"}
+```{r fig.width = 10, fig.height= 7, fig.align = "center"}
 #### Total sales by LIFESTAGE and PREMIUM_CUSTOMER
 # Over to you! Calculate the summary of sales by those dimensions and create a plot.
 
+cust_seg <- data[,c("TOT_SALES","LIFESTAGE","PREMIUM_CUSTOMER")]
+
+# parse through info, for each premium type and lifestyle
+sumPremLife <- function(df)
+{
+  
+  # make data frame holding:
+  # total sales, customer segment
+  res <- data.frame(matrix(ncol = 3))
+  
+  for(premStat in unique(df$PREMIUM_CUSTOMER))
+  {
+    for(lifeStat in unique(df$LIFESTAGE))
+    {
+      # filter data by premstat and lifestat
+      m <- df %>% filter(PREMIUM_CUSTOMER == premStat & LIFESTAGE == lifeStat)
+      
+      # sum total sales
+      totSales <- sum(m$TOT_SALES)
+      
+      # add onto matrix 
+      res <- rbind(res,c(paste0(premStat, " - ", lifeStat), totSales, nrow(m)))
+      
+    }
+  }
+  
+  # remove first row
+  res <- res[2:nrow(res),]
+  # reset indices
+  rownames(res) <- NULL
+  # name columns
+  colnames(res) <- c("Customer_Segment","Total_Sales", "N_Customer")
+  
+  return(res)
+}
+
+segdata <- sumPremLife(cust_seg)
+
+
+# plot
+ggplot(segdata) + geom_bar(aes(x = Customer_Segment, y = Total_Sales), stat = "identity") + theme(axis.text.x = element_text(angle = 90)) + labs(title = "Total Sales per Customer Premium/Lifestage Type", x = "Premium/Lifestage Type", y = "Total Sales")
+
 ```
+
+Sales are coming mainly from Budget - older families, Mainstream - young
+singles/couples, and Mainstream - Older retirees.
+Let's see if the higher sales are due to there being more customers who buy chips.
+
+```{r fig.width = 10, fig.height = 7, fig.align = "center"}
+#### Number of customers by LIFESTAGE and PREMIUM_CUSTOMER
+# Over to you! Calculate the summary of number of customers by those dimensions and create a plot.
+
+# subset all products with "chip" in product name
+cust_seg_chip <- data[grepl("CHIP",toupper(data$PROD_NAME)),c("TOT_SALES","LIFESTAGE","PREMIUM_CUSTOMER")]
+
+# prem life sum sales based on chip
+chip_premlife <- sumPremLife(cust_seg_chip)
+
+# plot
+ggplot(chip_premlife) + geom_bar(aes(x = Customer_Segment, y = Total_Sales), stat = "identity") + theme(axis.text.x = element_text(angle = 90)) + labs(title = "Total Sales per Customer Premium/Lifestage Type of Chips", x = "Premium/Lifestage Type", y = "Total Sales")
+
+```
+
+
+There are more Budget - Older families, Mainstream - young singles/couples and Mainstream - retirees who buy
+chips. This contributes to there being more sales to these customer segments but this is not a major driver for the Budget - Older families segment.
+Higher sales may also be driven by more units of chips being bought per customer.
+Let's have a look at this next.
+
+```{r fig.width = 10, fig.height = 5, fig.align = "center"}
+#### Average number of units per customer by LIFESTAGE and PREMIUM_CUSTOMER
+# Over to you! Calculate and plot the average number of units per customer by those two dimensions.
+
+# change into numeric
+segdata$Total_Sales <- as.numeric(segdata$Total_Sales)
+segdata$N_Customer <- as.numeric(segdata$N_Customer)
+
+# mutate for avg column
+segdata_v1 <- segdata %>% mutate(Avg_Total = Total_Sales / N_Customer)
+
+# plot
+ggplot(segdata_v1) + geom_bar(aes(x = Customer_Segment, y = Avg_Total), stat = "identity") + theme(axis.text.x = element_text(angle = 90)) + labs(title = "Average Total Sales per Customer Premium/Lifestage Type", x = "Premium/Lifestage Type", y = "Average Total Sales")
+
+```
+
+Mainstream Midage families and Young singles/couples in general buy more chips per customer.
+Let's also investigate the average price per unit chips bought for each customer
+segment as this is also a driver of total sales.
+
+```{r fig.width = 10, fig.height = 5, fig.align = "center"}
+#### Average price per unit by LIFESTAGE and PREMIUM_CUSTOMER
+# Over to you! Calculate and plot the average price per unit sold (average sale price) by those two customer dimensions.
+
+# update to numeric versions
+chip_premlife <- chip_premlife %>% transform(Total_Sales = as.numeric(Total_Sales), N_Customer = as.numeric(N_Customer))
+
+# mutate average column
+chip_premlife_v1 <- chip_premlife %>% mutate(Avg_Total = Total_Sales / N_Customer)
+
+# plot
+ggplot(chip_premlife_v1) + geom_bar(aes(x = Customer_Segment, y = Avg_Total), stat = "identity") + theme(axis.text.x = element_text(angle = 90)) + labs(title = "Average Total Sales per Customer Premium/Lifestage Type - Chips Sales", x = "Premium/Lifestage Type", y = "Average Total Sales")
+
+```
+Mainstream midage and young singles and couples are more willing to pay more per
+packet of chips compared to their budget and premium counterparts. This may be due
+to premium shoppers being more likely to buy healthy snacks and when they buy
+chips, this is mainly for entertainment purposes rather than their own consumption.
+This is also supported by there being fewer premium midage and young singles and
+couples buying chips compared to their mainstream counterparts.
+
+As the difference in average price per unit isn't large, we can check if this difference is statistically different.
+
+
+```{r}
+#### Perform an independent t-test between mainstream vs premium and budget midage and
+#### young singles and couples
+# Over to you! Perform a t-test to see if the difference is significant.
+
+# get dataframe of chip purchases of all midage and young singles/couples
+chip_t_test <- cust_seg_chip[LIFESTAGE == "YOUNG SINGLES/COUPLES" | LIFESTAGE == "MIDAGE SINGLES/COUPLES",]
+
+# mainstream filter
+ms <- chip_t_test[PREMIUM_CUSTOMER == "Mainstream"]
+
+# not mainstream filter
+nms <- chip_t_test[PREMIUM_CUSTOMER != "Mainstream"]
+
+# test mainstream vs not mainstream
+# with equal variance
+t.test(x = ms$TOT_SALES, y = nms$TOT_SALES, alternative = "g", var.equal = T, conf.level = 0.95)
+# not equal variance
+t.test(x = ms$TOT_SALES, y = nms$TOT_SALES, alternative = "g", var.equal = F, conf.level = 0.95)
+
+```
+The t-test results in a p-value of < 2.2e-16, i.e. the unit price for mainstream,
+young and mid-age singles and couples are significantly higher than
+that of budget or premium, young and midage singles and couples.
+## Deep dive into specific customer segments for insights
+We have found quite a few interesting insights that we can dive deeper into.
+We might want to target customer segments that contribute the most to sales to
+retain them or further increase sales. Let's look at Mainstream - young
+singles/couples. For instance, let's find out if they tend to buy a particular
+brand of chips.
+
+```{r fig.align = "center"}
+#### Deep dive into Mainstream, young singles/couples
+# Over to you! Work out of there are brands that these two customer segments prefer more than others. You could use a technique called affinity analysis or a-priori analysis (or any other method if you prefer)
+
+# make frequency plot of different brands for young mid age singles/couples
+life_prem_brand_data <- data[(LIFESTAGE == "YOUNG SINGLES/COUPLES" | LIFESTAGE == "MIDAGE SINGLES/COUPLES") & grepl("CHIP",toupper(data$PROD_NAME)),c("LYLTY_CARD_NBR","PROD_NAME","LIFESTAGE","PREMIUM_CUSTOMER","BRAND")]
+
+freq_brand <- table(life_prem_brand_data$BRAND)
+
+ggplot() + geom_bar(aes(x = names(freq_brand), y = freq_brand), stat="identity") + labs(title = "Frequencies of Chip Brand Purchases for Young and Midage Singles/Couples", x = "Brand Name", y = "Frequency")
+sum(freq_brand)
+
+# prepare data to convert into transactions for apriori
+
+# get for young
+
+young_brand <- life_prem_brand_data[LIFESTAGE == "YOUNG SINGLES/COUPLES","BRAND"]
+young_trans <- life_prem_brand_data[LIFESTAGE == "YOUNG SINGLES/COUPLES","LYLTY_CARD_NBR"]
+
+# change into factors
+young_brand <- factor(young_brand$BRAND)
+young_trans <- factor(young_trans$LYLTY_CARD_NBR)
+
+young_transactions <- split(young_brand,young_trans)
+
+young_rules <- apriori(young_transactions, parameter = list(supp = 0.0001, conf = 0.8))
+# remove empty col
+young_rules_df <- inspect(young_rules) %>% select(-2)
+
+# get rules of young, focus on support for more frequent combinations
+young_rules_df %>% arrange(desc(support))
+
+# get for midage
+mid_brand <- life_prem_brand_data[LIFESTAGE == "MIDAGE SINGLES/COUPLES","BRAND"]
+mid_trans <- life_prem_brand_data[LIFESTAGE == "MIDAGE SINGLES/COUPLES","LYLTY_CARD_NBR"]
+
+mid_brand <- factor(mid_brand$BRAND)
+mid_trans <- factor(mid_trans$LYLTY_CARD_NBR)
+
+mid_transactions <- split(mid_brand, mid_trans)
+
+mid_rules <- apriori(mid_transactions,parameter = list(supp = 0.0001, conf = 0.8))
+
+mid_rules_df <- inspect(mid_rules) %>% select(-2)
+
+mid_rules_df %>% arrange(desc(support))
+
+
+# do it for the rest of the population
+
+life_prem_brand_data_v2 <- data[(LIFESTAGE != "YOUNG SINGLES/COUPLES" & LIFESTAGE != "MIDAGE SINGLES/COUPLES") & grepl("CHIP",toupper(data$PROD_NAME)),c("LYLTY_CARD_NBR","PROD_NAME","LIFESTAGE","PREMIUM_CUSTOMER","BRAND")]
+
+# prepare data to convert into transactions for apriori
+
+other_brand <- life_prem_brand_data_v2[,"BRAND"]
+other_trans <- life_prem_brand_data_v2[,"LYLTY_CARD_NBR"]
+
+
+# change into factor
+other_brand <- factor(other_brand$BRAND)
+other_trans <- factor(other_trans$LYLTY_CARD_NBR)
+
+# make transactions list
+other_transactions <- split(other_brand,other_trans)
+
+# apriori
+other_rules <- apriori(other_transactions, parameter = list(supp = 0, conf = 0.8))
+
+other_rules_df <- inspect(other_rules) %>% select(-2)
+
+other_rules_df <- other_rules_df %>% arrange(desc(support))
+
+```
+We can see that:
+
+NCC and WW are the most common brands bought by young and midage singles/couples.
+
+Cobbs, French, and Tostitos seem to be the most popular for other customer segments.
+
+Let's also find out if our target segment tends to buy larger packs of chips.
+```{r fig.align = "center"}
+#### Preferred pack size compared to the rest of the population
+# Over to you! Do the same for pack size.
+
+# do t test if average packsize is higher for mainstream young singles/couples as opposed to others
+
+# get mainstream young singles/couples
+ms_young <- data[LIFESTAGE == "YOUNG SINGLES/COUPLES" & PREMIUM_CUSTOMER == "Mainstream",]
+# get others
+not_ms_young <- data[xor(LIFESTAGE != "YOUNG SINGLES/COUPLES", PREMIUM_CUSTOMER != "Mainstream"),]
+
+
+# apriori for ms_young
+ms_young_pack <- factor(ms_young$PACK_SIZE)
+ms_young_id <- factor(ms_young$LYLTY_CARD_NBR)
+
+ms_young_trans <- split(ms_young_pack,ms_young_id)
+
+ms_young_rules <- apriori(ms_young_trans, parameter = list(supp = 0.001, conf = 0.8))
+ms_young_rules_df <- inspect(ms_young_rules) %>% select(-2) %>% arrange(desc(support))
+
+
+# apriori for not_ms_young
+not_ms_young_pack <- factor(not_ms_young$PACK_SIZE)
+not_ms_young_id <- factor(not_ms_young$LYLTY_CARD_NBR)
+
+not_ms_young_trans <- split(not_ms_young_pack, not_ms_young_id)
+
+not_ms_young_rules <- apriori(not_ms_young_trans, parameter = list(supp = 0.001,conf = 0.8))
+not_ms_young_rules_df <- inspect(not_ms_young_rules) %>% select(-2) %>% arrange(desc(support))
+
+```
+Mainstream-Young Singles/Couples tend to pick 90, 330, and 380 grams for their pack size.
+
+Other segments tend to pick 150 and 170 grams.
+
+This shows mainstream young singles/couples either pick small chips or very large chips, while other segments tend to pick sizes in the middle.
+
