@@ -240,10 +240,77 @@ We'll start with scaling the control store's sales to a level similar to control
 for any differences between the two stores outside of the trial period.
 ```{r Comparison of results during trial}
 #### Scale pre-trial control sales to match pre-trial trial store sales
-scalingFactorForControlSales <- sum(preTrialMeasures %>% filter(STORE_NBR == trial_store & YEARMONTH < 201902) %>% pull(totSales)) / sum(preTrialMeasures %>% filter(STORE_NBR == control_store & YEARMONTH < 201902))
+scalingFactorForControlSales <- sum(preTrialMeasures %>% filter(STORE_NBR == trial_store & YEARMONTH < 201902) %>% pull(totSales)) / sum(preTrialMeasures %>% filter(STORE_NBR == control_store & YEARMONTH < 201902) %>% pull(totSales))
 
 #### Apply the scaling factor
 measureOverTimeSales <- measureOverTime
 scaledControlSales <- measureOverTimeSales %>% filter(STORE_NBR == control_store) %>% mutate(controlSales = totSales * scalingFactorForControlSales)
 
 ```
+
+Now that we have comparable sales figures for the control store, we can calculate the percentage difference between the scaled control sales and the trial store's sales during the trial period.
+
+```{r}
+#### Over to you! Calculate the percentage difference between scaled control sales and trial sales
+
+percentDiff <- ((scaledControlSales %>% pull(controlSales))-(measureOverTime %>% filter(STORE_NBR == trial_store) %>% pull(totSales))) / (measureOverTime %>% filter(STORE_NBR == trial_store) %>% pull(totSales))
+
+percentageDiff <- scaledControlSales
+percentageDiff["percentageDiff"] <- percentDiff
+
+```
+Let's see if the difference is significant!
+```{r}
+#### As our null hypothesis is that the trial period is the same as the pre-trial period, let's take the standard deviation based on the scaled percentage difference in the pre-trial period
+
+stdDev <- sd(percentageDiff %>% filter(YEARMONTH < 201902) %>% pull(percentageDiff))
+
+#### Note that there are 8 months in the pre-trial period
+#### hence 8 - 1 = 7 degrees of freedom 
+degreesOfFreedom <- 7
+#### We will test with a null hypothesis of there being 0 difference between trial and control stores.
+
+#### Over to you! Calculate the t-values for the trial months. After that, find the 95th percentile of the t distribution with the appropriate degrees of freedom
+#### to check whether the hypothesis is statistically significant.
+#### Hint: The test statistic here is (x - u)/standard deviation
+
+# t test between scaled control sales and trial sales during trial period using pretrial stddev
+
+control_mean <- mean(percentageDiff %>% filter(YEARMONTH >= 201902) %>% pull(controlSales))
+
+trial_mean <- mean(measureOverTime %>% filter(STORE_NBR == trial_store & YEARMONTH >= 201902) %>% pull(totSales))
+
+tval <- (control_mean - trial_mean) / stdDev
+
+tval
+qt(0.05,df = degreesOfFreedom)
+```
+We can observe that the t-value is much larger than the 95th percentile value of the t-distribution for March and April - i.e. the increase in sales in the trial
+store in March and April is statistically greater than in the control store.
+Let's create a more visual version of this by plotting the sales of the control store, the sales of the trial stores and the 95th percentile value of sales of the
+control store.
+
+```{r, fig.align = "Center"}
+measureOverTimeSales <- measureOverTime
+#### Trial and control store total sales
+#### Over to you! Create new variables Store_type, totSales and TransactionMonth in the data table.
+
+pastSales <- measureOverTimeSales[, Store_type := ][,totSales :=][, TransactionMonth :=][Store_type %in%c("Trial", "Control"), ]
+#### Control store 95th percentile
+pastSales_Controls95 <- pastSales[Store_type == "Control",
+ ][, totSales := totSales * (1 + stdDev * 2)
+ ][, Store_type := "Control 95th % confidence
+interval"]
+#### Control store 5th percentile
+pastSales_Controls5 <- pastSales[Store_type == "Control",
+ ][, totSales := totSales * (1 - stdDev * 2)
+ ][, Store_type := "Control 5th % confidence
+interval"]
+trialAssessment <- rbind(pastSales, pastSales_Controls95, pastSales_Controls5)
+#### Plotting these in one nice graph
+ggplot(trialAssessment, aes(TransactionMonth, totSales, color = Store_type)) +
+ geom_rect(data = trialAssessment[ YEARMONTH < 201905 & YEARMONTH > 201901 ,],
+aes(xmin = min(TransactionMonth), xmax = max(TransactionMonth), ymin = 0 , ymax =
+Inf, color = NULL), show.legend = FALSE) +
+ geom_line() +
+ labs(x = "Month of operation", y = "Total sales", title = "Total sales by month")
