@@ -5,10 +5,10 @@ mainfont: Roboto
 monofont: Consolas
 output:
  pdf_document: 
-   df_print: default
-   highlight: tango
-   keep_tex: yes
-   latex_engine: xelatex
+ df_print: default
+ highlight: tango
+ keep_tex: yes
+ latex_engine: xelatex
 header-includes:
   \usepackage{fvextra}
   \DefineVerbatimEnvironment{Highlighting}{Verbatim}{breaklines,commandchars=\\\{\}}
@@ -71,7 +71,7 @@ library(arulesViz)
 #### assign the data files to data.tables
 # over to you! fill in the path to your working directory. If you are on a Windows machine, you will need to use forward slashes (/) instead of backshashes (\)
 filePath <- paste0(getwd(),"/")
-transactionData <- fread(file = paste0(filePath,"QVI_transaction_data.xlsx - in.csv"), header = TRUE)
+transactionData <- fread(file = paste0(filePath,"QVI_transaction_data.csv"), header = TRUE)
 customerData <- fread(file = paste0(filePath,"QVI_purchase_behaviour.csv"), header = TRUE)
 
 ```
@@ -545,7 +545,7 @@ segdata$N_Customer <- as.numeric(segdata$N_Customer)
 segdata_v1 <- segdata %>% mutate(Avg_Total = Total_Sales / N_Customer)
 
 # plot
-ggplot(segdata_v1) + geom_bar(aes(x = Customer_Segment, y = Avg_Total), stat = "identity") + theme(axis.text.x = element_text(angle = 90)) + labs(title = "Average Total Sales per Customer Premium/Lifestage Type", x = "Premium/Lifestage Type", y = "Average Total Sales")
+ggplot(segdata_v1) + geom_bar(aes(x = Customer_Segment, y = Avg_Total), stat = "identity") + theme(axis.text.x = element_text(angle = 90)) + labs(title = "Average Total Sales per Customer Premium/Lifestage Type", x = "Premium/Lifestage Type", y = "Average Total Sales") + geom_hline(yintercept = 7.5, color = "red")
 
 ```
 
@@ -613,11 +613,11 @@ brand of chips.
 # Over to you! Work out of there are brands that these two customer segments prefer more than others. You could use a technique called affinity analysis or a-priori analysis (or any other method if you prefer)
 
 # make frequency plot of different brands for young mid age singles/couples
-life_prem_brand_data <- data[(LIFESTAGE == "YOUNG SINGLES/COUPLES" | LIFESTAGE == "MIDAGE SINGLES/COUPLES") & grepl("CHIP",toupper(data$PROD_NAME)),c("LYLTY_CARD_NBR","PROD_NAME","LIFESTAGE","PREMIUM_CUSTOMER","BRAND")]
+life_prem_brand_data <- data[(LIFESTAGE == "YOUNG SINGLES/COUPLES" | LIFESTAGE == "MIDAGE SINGLES/COUPLES") & grepl("CHIP",toupper(data$PROD_NAME)) & PREMIUM_CUSTOMER == "Mainstream",c("LYLTY_CARD_NBR","PROD_NAME","LIFESTAGE","PREMIUM_CUSTOMER","BRAND")]
 
 freq_brand <- table(life_prem_brand_data$BRAND)
 
-ggplot() + geom_bar(aes(x = names(freq_brand), y = freq_brand), stat="identity") + labs(title = "Frequencies of Chip Brand Purchases for Young and Midage Singles/Couples", x = "Brand Name", y = "Frequency")
+ggplot() + geom_bar(aes(x = names(freq_brand), y = freq_brand, fill = names(freq_brand)), stat="identity") + labs(title = "Frequencies of Chip Brand Purchases for \n Mainstream Young and Midage Singles/Couples", x = "Brand Name", y = "Frequency (total purchases)", fill = "Brand Names")
 sum(freq_brand)
 
 # prepare data to convert into transactions for apriori
@@ -679,6 +679,18 @@ other_rules <- apriori(other_transactions, parameter = list(supp = 0, conf = 0.8
 other_rules_df <- inspect(other_rules) %>% select(-2)
 
 other_rules_df <- other_rules_df %>% arrange(desc(support))
+
+# find top 8 brands
+
+top5brands <- data %>% group_by(BRAND) %>% count() %>% ungroup() %>% slice_max(n, n = 8) %>% pull(BRAND)
+
+# filter data to only include top 8 brands
+
+top5brand_data <- data %>% filter(BRAND %in% top5brands & PREMIUM_CUSTOMER == "Mainstream")
+
+# graph bar plot with proportions
+
+ggplot(top5brand_data, aes(x = LIFESTAGE, fill = BRAND)) + geom_bar(position = "fill") + theme(axis.text.x = element_text(angle = 90)) + labs(title = "Top 8 Brands Proportions for each Mainstream Lifestage", x = "Lifestage", y = "Proportion", fill = "Brand Names")
 
 ```
 We can see that:
